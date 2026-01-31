@@ -149,17 +149,21 @@ jobs:
       - name: "🎶 Build kernel"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         run: |
-          # Пути к компиляторам
+          echo "🔥 Устанавливаем Python 2 (без него старые ядра не собираются)..."
+          sudo apt-get update
+          sudo apt-get install -y python2
+          sudo ln -sf /usr/bin/python2 /usr/bin/python
+
+          echo "🔧 Настраиваем пути к компиляторам..."
           GCC64="$(pwd)/../gcc64/bin/aarch64-elf-"
           GCC32="$(pwd)/../gcc32/bin/arm-eabi-"
           
-          # Создаем папку для сборки
+          echo "📁 Создаем папку для сборки и конфиг..."
           mkdir -p out
-          
-          # 1. Сначала генерируем .config из твоего jason_user_defconfig
+          # Генерируем конфиг в папку out
           make O=out ARCH=arm64 CROSS_COMPILE="$GCC64" jason_user_defconfig
           
-          # 2. Теперь запускаем саму компиляцию
+          echo "🚀 ПОЕХАЛИ! Запускаем компиляцию..."
           make O=out ARCH=arm64 \
             CROSS_COMPILE="$GCC64" \
             CROSS_COMPILE_ARM32="$GCC32" \
