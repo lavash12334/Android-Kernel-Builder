@@ -1,4 +1,4 @@
-name: "🔥 Final Build (Ubuntu 20.04)"
+name: "🚀 Build & Package Kernel (Auto-Zip)"
 
 env:
   CONFIGURATION: "repos.json"
@@ -21,7 +21,7 @@ jobs:
     needs: Set-repos
     runs-on: ubuntu-latest
     container:
-      image: ubuntu:20.04  # Используем 20.04 — она стабильнее для этих задач
+      image: ubuntu:20.04
 
     strategy:
       fail-fast: false
@@ -36,17 +36,12 @@ jobs:
     steps:
       - name: "📦 Install dependencies"
         run: |
-          # Включаем репозиторий universe для доступа к python2
           apt-get update && apt-get install -y software-properties-common
           add-apt-repository universe
           apt-get update
-          
-          # Устанавливаем всё необходимое
           apt-get install -y build-essential bc curl git zip gcc-aarch64-linux-gnu \
           gcc-arm-linux-gnueabi libssl-dev lftp zstd wget libfl-dev python2 \
           libarchive-tools jq cpio
-          
-          # Делаем python2 основным (чтобы ядро его видело как "python")
           ln -sf /usr/bin/python2 /usr/bin/python
 
       - name: "🌟 Clone Source"
@@ -67,17 +62,14 @@ jobs:
       - name: "🎶 Build Kernel"
         working-directory: ${{ env.kernelDir }}/${{ env.kernelName }}
         run: |
-          # Формируем пути
           GCC64="$(pwd)/../gcc64/bin/${{ matrix.repos.params.CROSS_COMPILE }}"
           GCC32="$(pwd)/../gcc32/bin/${{ matrix.repos.params.CROSS_COMPILE_ARM32 }}"
-          
           mkdir -p ${{ env.OUT_DIR }}
           
-          echo "🛠 Генерируем конфиг..."
+          # Конфиг
           make O=${{ env.OUT_DIR }} ARCH=arm64 CROSS_COMPILE="$GCC64" ${{ env.DEFCONFIG_NAME }}
           
-          echo "🔥 Компилируем..."
-          # Убрали лишние кавычки в флагах, чтобы не было Syntax Error
+          # Сборка
           make O=${{ env.OUT_DIR }} ARCH=arm64 \
             CROSS_COMPILE="$GCC64" \
             CROSS_COMPILE_ARM32="$GCC32" \
@@ -85,8 +77,32 @@ jobs:
             HOSTCFLAGS="-fcommon" \
             -j$(nproc)
 
-      - name: "💛 Upload Image.gz"
+      - name: "📦 Package into AnyKernel3 (FIXED)"
+        run: |
+          # 1. Скачиваем AnyKernel3
+          git clone https://github.com/osm0sis/AnyKernel3.git AnyKernel3
+          
+          # 2. Копируем собранное ядро
+          cp ${{ env.kernelDir }}/${{ env.kernelName }}/${{ env.OUT_DIR }}/arch/arm64/boot/Image.gz AnyKernel3/
+          
+          # 3. АВТОМАТИЧЕСКАЯ НАСТРОЙКА (Магия sed)
+          cd AnyKernel3
+          # Меняем имя девайса на jason
+          sed -i 's/device.name1=.*/device.name1=jason/' anykernel.sh
+          # Убираем лишние имена, чтобы не путаться
+          sed -i 's/device.name2=.*/device.name2=/' anykernel.sh
+          sed -i 's/device.name3=.*/device.name3=/' anykernel.sh
+          sed -i 's/device.name4=.*/device.name4=/' anykernel.sh
+          
+          # ИСПРАВЛЯЕМ ПУТЬ К РАЗДЕЛУ (Самое важное!)
+          # Заменяем старую строку с OMAP на правильную для Qualcomm
+          sed -i 's|BLOCK=.*|BLOCK=/dev/block/bootdevice/by-name/boot;|' anykernel.sh
+          
+          # 4. Пакуем в ZIP
+          zip -r9 ../AnyKernel-Jason-Auto.zip * -x .git README.md
+
+      - name: "💛 Upload Ready-to-Flash ZIP"
         uses: actions/upload-artifact@v4
         with:
-          name: Kernel-${{ matrix.repos.kernelSource.device }}
-          path: ${{ env.kernelDir }}/${{ env.kernelName }}/${{ env.OUT_DIR }}/arch/arm64/boot/Image.gz
+          name: Flash-Me-In-TWRP
+          path: AnyKernel-Jason-Auto.zip
