@@ -1,9 +1,10 @@
-[  {
+[
+  {
     "kernelSource": {
-      "name": "miku-KernelSU",
-      "repo": "https://github.com/PhamtomK12/kernel_xiaomi_odin",
-      "branch": "TDA",
-      "device": "odin"
+      "name": "NetHunter-Jason-A13",
+      "repo": "https://github.com/axifive/android_kernel_xiaomi_sdm660",
+      "branch": "master",
+      "device": "jason"
     },
     "withKernelSU": true,
     "toolchains": [
@@ -14,17 +15,16 @@
       },
       {
         "repo": "https://gitlab.com/ThankYouMario/android_prebuilts_clang-standalone/",
-        "branch": "11",
+        "branch": "17",
         "name": "clang"
       }
     ],
     "params": {
       "ARCH": "arm64",
+      "DEFCONFIG": "jason_defconfig",
       "CROSS_COMPILE": "aarch64-linux-gnu-",
       "CROSS_COMPILE_ARM32": "arm-linux-gnueabi-",
-      "CROSS_COMPILE_COMPAT": "arm-linux-gnueabi-",
       "CLANG_TRIPLE": "aarch64-linux-gnu-",
-      "AR": "",
       "CC": "clang"
     }
   }
