@@ -146,20 +146,18 @@ jobs:
           echo "PATH Variable: $PATH"
           make ${{ env.args }} ${{ env.DEFCONFIG_NAME }}
 
-      - name: "🎶 Build kernel"
+            - name: "🎶 Build kernel"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         env:
           args: ${{ steps.generate-args.outputs.args }}
         run: |
-          export PATH=$(pwd)/../gas/:$PATH
-          
-          # Убираем проверку регистров и границ массива
-          export KCFLAGS="-fcommon -no-integrated-as -Wno-error -Wno-array-bounds -Wno-register-asm"
+          # Убираем все хитрые флаги Clang, оставляем только базу
+          export KCFLAGS="-fcommon -Wno-error"
           export HOSTCFLAGS="-fcommon"
           
           echo "PATH Variable: $PATH"
-          # Добавляем LD_LIBRARY_PATH на случай проблем с линковкой
-          make ${args} KCFLAGS="$KCFLAGS" HOSTCFLAGS="$HOSTCFLAGS" HOSTCC=gcc
+          make ${args} KCFLAGS="$KCFLAGS" HOSTCFLAGS="$HOSTCFLAGS"
+
 
       - name: "💛 Upload Image"
         uses: actions/upload-artifact@v4
