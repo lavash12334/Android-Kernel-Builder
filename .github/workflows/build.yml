@@ -152,7 +152,7 @@ jobs:
           args: ${{ steps.generate-args.outputs.args }}
         run: |
           echo "PATH Variable: $PATH"
-          make ${args} KCFLAGS="-fcommon"
+          make ${args} KCFLAGS="-fcommon" HOSTCFLAGS="-fcommon"
 
       - name: "💛 Upload Image"
         uses: actions/upload-artifact@v4
