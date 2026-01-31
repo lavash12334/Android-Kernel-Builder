@@ -148,26 +148,15 @@ jobs:
 
       - name: "🎶 Build kernel"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
-        env:
-          args: ${{ steps.generate-args.outputs.args }}
         run: |
-          # 1. Добавляем скачанные GCC в PATH, чтобы система их видела
-          export PATH=$(pwd)/../gcc64/bin:$(pwd)/../gcc32/bin:$PATH
-          
-          # 2. Флаги совместимости
-          export KCFLAGS="-fcommon -Wno-error"
-          export HOSTCFLAGS="-fcommon"
-          
-          echo "PATH Variable: $PATH"
-          
-          # 3. Запуск сборки
-          # Важно: CROSS_COMPILE должен соответствовать префиксу в папке bin (обычно aarch64-elf-)
-          make ${args} \
-            ARCH=arm64 \
-            CROSS_COMPILE=aarch64-elf- \
-            CROSS_COMPILE_ARM32=arm-eabi- \
-            KCFLAGS="$KCFLAGS" \
-            HOSTCFLAGS="$HOSTCFLAGS"
+          GCC64="$(pwd)/../gcc64/bin/aarch64-elf-"
+          GCC32="$(pwd)/../gcc32/bin/arm-eabi-"
+          make O=out ARCH=arm64 \
+            CROSS_COMPILE="$GCC64" \
+            CROSS_COMPILE_ARM32="$GCC32" \
+            KCFLAGS="-fcommon -Wno-error" \
+            HOSTCFLAGS="-fcommon" \
+            -j$(nproc)
 
 
       - name: "💛 Upload Image"
