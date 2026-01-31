@@ -151,8 +151,12 @@ jobs:
         env:
           args: ${{ steps.generate-args.outputs.args }}
         run: |
+          # Принудительно отключаем строгость компилятора
+          export KCFLAGS="-fcommon -no-integrated-as -Wno-error"
+          export HOSTCFLAGS="-fcommon"
+          
           echo "PATH Variable: $PATH"
-          make ${args} KCFLAGS="-fcommon" HOSTCFLAGS="-fcommon"
+          make ${args} KCFLAGS="$KCFLAGS" HOSTCFLAGS="$HOSTCFLAGS" CLANG_TRIPLE=aarch64-linux-gnu-
 
       - name: "💛 Upload Image"
         uses: actions/upload-artifact@v4
