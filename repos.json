@@ -1,13 +1,18 @@
 [
   {
     "kernelSource": {
-      "name": "kernel",
+      "name": "NetHunter-Jason",
       "repo": "https://github.com/axifive/android_kernel_xiaomi_sdm660",
       "branch": "master",
       "device": "jason"
     },
     "withKernelSU": false,
     "toolchains": [
+      {
+        "repo": "https://android.googlesource.com/platform/prebuilts/gas/linux-x86",
+        "branch": "master",
+        "name": "gas"
+      },
       {
         "repo": "https://gitlab.com/ThankYouMario/android_prebuilts_clang-standalone/",
         "branch": "11",
@@ -22,3 +27,5 @@
       "CLANG_TRIPLE": "aarch64-linux-gnu-",
       "CC": "clang"
     }
+  }
+]
