@@ -1,4 +1,4 @@
-name: "🚀 Build Kernels (Docker 18.04)"
+name: "🔥 Final Build (Ubuntu 20.04)"
 
 env:
   CONFIGURATION: "repos.json"
@@ -9,31 +9,25 @@ on:
 
 jobs:
   Set-repos:
-    name: "🐂 Parse repos.json"
     runs-on: ubuntu-latest
     outputs:
       repos: ${{ steps.generate-matrix.outputs.repos }}
     steps:
-      - name: "😄 Checkout"
-        uses: actions/checkout@v4
-      - name: "😆 Generate Matrix"
-        id: generate-matrix
-        run: |
-          echo "repos=$(cat ${{ env.CONFIGURATION }} | tr -d '\n')" >> $GITHUB_OUTPUT
+      - uses: actions/checkout@v4
+      - id: generate-matrix
+        run: echo "repos=$(cat ${{ env.CONFIGURATION }} | tr -d '\n')" >> $GITHUB_OUTPUT
 
   Build-Kernel:
-    name: "🐎 Build"
     needs: Set-repos
     runs-on: ubuntu-latest
-    # Вот здесь магия: запускаем всё внутри старой доброй Убунты
     container:
-      image: ubuntu:18.04
-    
+      image: ubuntu:20.04  # Используем 20.04 — она стабильнее для этих задач
+
     strategy:
       fail-fast: false
       matrix:
         repos: ${{ fromJSON(needs.Set-repos.outputs.repos) }}
-    
+
     env:
       kernelDir: ${{ matrix.repos.kernelSource.name }}_${{ matrix.repos.kernelSource.device }}
       kernelName: ${{ matrix.repos.kernelSource.name }}
@@ -42,13 +36,18 @@ jobs:
     steps:
       - name: "📦 Install dependencies"
         run: |
+          # Включаем репозиторий universe для доступа к python2
+          apt-get update && apt-get install -y software-properties-common
+          add-apt-repository universe
           apt-get update
+          
+          # Устанавливаем всё необходимое
           apt-get install -y build-essential bc curl git zip gcc-aarch64-linux-gnu \
-          gcc-arm-linux-gnueabi libssl-dev lftp zstd wget libfl-dev python2.7 \
-          libarchive-tools jq
-          # Настраиваем Python 2 как основной
-          ln -sf /usr/bin/python2.7 /usr/bin/python
-          ln -sf /usr/bin/python2.7 /usr/bin/python2
+          gcc-arm-linux-gnueabi libssl-dev lftp zstd wget libfl-dev python2 \
+          libarchive-tools jq cpio
+          
+          # Делаем python2 основным (чтобы ядро его видело как "python")
+          ln -sf /usr/bin/python2 /usr/bin/python
 
       - name: "🌟 Clone Source"
         run: |
@@ -58,7 +57,6 @@ jobs:
       - name: "💫 Clone Toolchains"
         working-directory: ${{ env.kernelDir }}
         run: |
-          # Клонируем тулчейны из твоего repos.json
           echo '${{ toJSON(matrix.repos.toolchains) }}' | jq -c '.[]' | while read i; do
             name=$(echo $i | jq -r '.name')
             repo=$(echo $i | jq -r '.repo')
@@ -69,16 +67,17 @@ jobs:
       - name: "🎶 Build Kernel"
         working-directory: ${{ env.kernelDir }}/${{ env.kernelName }}
         run: |
-          # Определяем пути к скачанным тулчейнам
+          # Формируем пути
           GCC64="$(pwd)/../gcc64/bin/${{ matrix.repos.params.CROSS_COMPILE }}"
           GCC32="$(pwd)/../gcc32/bin/${{ matrix.repos.params.CROSS_COMPILE_ARM32 }}"
           
           mkdir -p ${{ env.OUT_DIR }}
           
-          # 1. Конфигурация
+          echo "🛠 Генерируем конфиг..."
           make O=${{ env.OUT_DIR }} ARCH=arm64 CROSS_COMPILE="$GCC64" ${{ env.DEFCONFIG_NAME }}
           
-          # 2. Сборка
+          echo "🔥 Компилируем..."
+          # Убрали лишние кавычки в флагах, чтобы не было Syntax Error
           make O=${{ env.OUT_DIR }} ARCH=arm64 \
             CROSS_COMPILE="$GCC64" \
             CROSS_COMPILE_ARM32="$GCC32" \
@@ -86,10 +85,8 @@ jobs:
             HOSTCFLAGS="-fcommon" \
             -j$(nproc)
 
-      - name: "💛 Upload Artifacts"
+      - name: "💛 Upload Image.gz"
         uses: actions/upload-artifact@v4
         with:
-          name: Kernel-${{ matrix.repos.kernelSource.device }}-${{ github.run_id }}
-          path: |
-            ${{ env.kernelDir }}/${{ env.kernelName }}/${{ env.OUT_DIR }}/arch/arm64/boot/Image*
-            ${{ env.kernelDir }}/${{ env.kernelName }}/${{ env.OUT_DIR }}/arch/arm64/boot/*.dtb*
+          name: Kernel-${{ matrix.repos.kernelSource.device }}
+          path: ${{ env.kernelDir }}/${{ env.kernelName }}/${{ env.OUT_DIR }}/arch/arm64/boot/Image.gz
