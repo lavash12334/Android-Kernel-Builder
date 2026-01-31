@@ -9,20 +9,22 @@
     "withKernelSU": false,
     "toolchains": [
       {
-        "repo": "https://github.com/nethunteros/android_prebuilts_clang-standalone",
-        "branch": "12",
-        "name": "clang"
+        "repo": "https://android.googlesource.com/platform/prebuilts/gas/linux-x86",
+        "branch": "master",
+        "name": "gas"
       },
       {
-        "repo": "https://github.com/nethunteros/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9",
-        "branch": "master",
-        "name": "gcc64"
+        "repo": "https://gitlab.com/ThankYouMario/android_prebuilts_clang-standalone/",
+        "branch": "14",
+        "name": "clang"
       }
     ],
     "params": {
       "ARCH": "arm64",
       "DEFCONFIG": "jason_user_defconfig",
-      "CROSS_COMPILE": "aarch64-linux-android-",
+      "CROSS_COMPILE": "aarch64-linux-gnu-",
+      "CROSS_COMPILE_ARM32": "arm-linux-gnueabi-",
+      "CLANG_TRIPLE": "aarch64-linux-gnu-",
       "CC": "clang"
     }
   }
