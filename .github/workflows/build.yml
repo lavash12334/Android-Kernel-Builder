@@ -151,19 +151,15 @@ jobs:
         env:
           args: ${{ steps.generate-args.outputs.args }}
         run: |
-          # Добавляем путь к GAS
           export PATH=$(pwd)/../gas/:$PATH
           
-          # Флаги для полной тишины компилятора
-          # -fcommon: лечит yylloc
-          # -Wno-error: не стопать билд на ворнингах
-          # -Wno-array-bounds: лечит твою текущую ошибку в signal.h
-          # -Wno-deprecated-declarations: лечит OpenSSL
-          export KCFLAGS="-fcommon -no-integrated-as -Wno-error -Wno-array-bounds -Wno-deprecated-declarations"
-          export HOSTCFLAGS="-fcommon -Wno-deprecated-declarations"
+          # Убираем проверку регистров и границ массива
+          export KCFLAGS="-fcommon -no-integrated-as -Wno-error -Wno-array-bounds -Wno-register-asm"
+          export HOSTCFLAGS="-fcommon"
           
           echo "PATH Variable: $PATH"
-          make ${args} KCFLAGS="$KCFLAGS" HOSTCFLAGS="$HOSTCFLAGS"
+          # Добавляем LD_LIBRARY_PATH на случай проблем с линковкой
+          make ${args} KCFLAGS="$KCFLAGS" HOSTCFLAGS="$HOSTCFLAGS" HOSTCC=gcc
 
       - name: "💛 Upload Image"
         uses: actions/upload-artifact@v4
