@@ -151,12 +151,23 @@ jobs:
         env:
           args: ${{ steps.generate-args.outputs.args }}
         run: |
-          # Убираем все хитрые флаги Clang, оставляем только базу
+          # 1. Добавляем скачанные GCC в PATH, чтобы система их видела
+          export PATH=$(pwd)/../gcc64/bin:$(pwd)/../gcc32/bin:$PATH
+          
+          # 2. Флаги совместимости
           export KCFLAGS="-fcommon -Wno-error"
           export HOSTCFLAGS="-fcommon"
           
           echo "PATH Variable: $PATH"
-          make ${args} KCFLAGS="$KCFLAGS" HOSTCFLAGS="$HOSTCFLAGS"
+          
+          # 3. Запуск сборки
+          # Важно: CROSS_COMPILE должен соответствовать префиксу в папке bin (обычно aarch64-elf-)
+          make ${args} \
+            ARCH=arm64 \
+            CROSS_COMPILE=aarch64-elf- \
+            CROSS_COMPILE_ARM32=arm-eabi- \
+            KCFLAGS="$KCFLAGS" \
+            HOSTCFLAGS="$HOSTCFLAGS"
 
 
       - name: "💛 Upload Image"
