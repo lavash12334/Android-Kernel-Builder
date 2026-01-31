@@ -149,10 +149,9 @@ jobs:
       - name: "🎶 Build kernel"
         working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
         run: |
-          echo "🔥 Устанавливаем Python 2 (без него старые ядра не собираются)..."
-          sudo apt-get update
-          sudo apt-get install -y python2
-          sudo ln -sf /usr/bin/python2 /usr/bin/python
+          echo "🎭 Маскируем Python 3 под Python 2..."
+          sudo ln -sf /usr/bin/python3 /usr/bin/python2
+          sudo ln -sf /usr/bin/python3 /usr/bin/python
 
           echo "🔧 Настраиваем пути к компиляторам..."
           GCC64="$(pwd)/../gcc64/bin/aarch64-elf-"
@@ -160,10 +159,11 @@ jobs:
           
           echo "📁 Создаем папку для сборки и конфиг..."
           mkdir -p out
-          # Генерируем конфиг в папку out
+          
+          # Генерируем конфиг
           make O=out ARCH=arm64 CROSS_COMPILE="$GCC64" jason_user_defconfig
           
-          echo "🚀 ПОЕХАЛИ! Запускаем компиляцию..."
+          echo "🚀 ФИНАЛЬНЫЙ ЗАПУСК..."
           make O=out ARCH=arm64 \
             CROSS_COMPILE="$GCC64" \
             CROSS_COMPILE_ARM32="$GCC32" \
