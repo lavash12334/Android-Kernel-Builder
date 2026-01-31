@@ -154,9 +154,12 @@ jobs:
           # Добавляем путь к GAS
           export PATH=$(pwd)/../gas/:$PATH
           
-          # Флаги: -fcommon (для yylloc), -Wno-error (игнор ворнингов), 
-          # -Wno-deprecated-declarations (для OpenSSL)
-          export KCFLAGS="-fcommon -no-integrated-as -Wno-error -Wno-deprecated-declarations"
+          # Флаги для полной тишины компилятора
+          # -fcommon: лечит yylloc
+          # -Wno-error: не стопать билд на ворнингах
+          # -Wno-array-bounds: лечит твою текущую ошибку в signal.h
+          # -Wno-deprecated-declarations: лечит OpenSSL
+          export KCFLAGS="-fcommon -no-integrated-as -Wno-error -Wno-array-bounds -Wno-deprecated-declarations"
           export HOSTCFLAGS="-fcommon -Wno-deprecated-declarations"
           
           echo "PATH Variable: $PATH"
