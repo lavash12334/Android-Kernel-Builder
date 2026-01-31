@@ -1,4 +1,4 @@
-name: "Build kernels"
+name: "🚀 Build Kernels (Docker 18.04)"
 
 env:
   CONFIGURATION: "repos.json"
@@ -16,186 +16,80 @@ jobs:
     steps:
       - name: "😄 Checkout"
         uses: actions/checkout@v4
-
       - name: "😆 Generate Matrix"
         id: generate-matrix
         run: |
-          echo "repos<<EOF" >> $GITHUB_OUTPUT
-          cat  ${{ env.CONFIGURATION }} >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "repos=$(cat ${{ env.CONFIGURATION }} | tr -d '\n')" >> $GITHUB_OUTPUT
 
   Build-Kernel:
-    name: "🐎 Build kernel"
+    name: "🐎 Build"
+    needs: Set-repos
     runs-on: ubuntu-latest
-    needs:
-      - Set-repos
+    # Вот здесь магия: запускаем всё внутри старой доброй Убунты
+    container:
+      image: ubuntu:18.04
+    
     strategy:
-      max-parallel: 2
       fail-fast: false
       matrix:
         repos: ${{ fromJSON(needs.Set-repos.outputs.repos) }}
+    
     env:
       kernelDir: ${{ matrix.repos.kernelSource.name }}_${{ matrix.repos.kernelSource.device }}
-
       kernelName: ${{ matrix.repos.kernelSource.name }}
-      kernelRepo: ${{ matrix.repos.kernelSource.repo }}
-      kernelBranch: ${{ matrix.repos.kernelSource.branch }}
-      kernelDevice: ${{ matrix.repos.kernelSource.device }}
+      DEFCONFIG_NAME: ${{ matrix.repos.params.DEFCONFIG }}
 
-      DEFCONFIG_NAME: "jason_user_defconfig"
-
-      withKernelSU: ${{ matrix.repos.withKernelSU }}
     steps:
-      - name: "✨ Create working dir"
-        run: mkdir -p $kernelDir
+      - name: "📦 Install dependencies"
+        run: |
+          apt-get update
+          apt-get install -y build-essential bc curl git zip gcc-aarch64-linux-gnu \
+          gcc-arm-linux-gnueabi libssl-dev lftp zstd wget libfl-dev python2.7 \
+          libarchive-tools jq
+          # Настраиваем Python 2 как основной
+          ln -sf /usr/bin/python2.7 /usr/bin/python
+          ln -sf /usr/bin/python2.7 /usr/bin/python2
 
-      - name: "⭐ Install prerequisites"
+      - name: "🌟 Clone Source"
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential bc curl git zip ftp gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev lftp zstd wget libfl-dev python3 libarchive-tools
-      - name: "🌟 Clone kernel source => (${{ env.kernelRepo }})"
-        working-directory: ./${{ env.kernelDir }}
-        run: |
-          git clone --recursive --branch $kernelBranch $kernelRepo $kernelName --depth=1
+          mkdir -p $kernelDir
+          git clone --depth=1 --branch ${{ matrix.repos.kernelSource.branch }} ${{ matrix.repos.kernelSource.repo }} $kernelDir/$kernelName
 
-      - name: "💫 Get toolchains"
-        working-directory: ./${{ env.kernelDir }}
-        env:
-          toolchains: "${{ toJSON(matrix.repos.toolchains) }}"
+      - name: "💫 Clone Toolchains"
+        working-directory: ${{ env.kernelDir }}
         run: |
-          toolchains_num="$(echo $toolchains | jq 'length')"
-          echo $toolchains_num
-          for ((i=0;i<toolchains_num;i++)); do
-            name=$(echo $toolchains | jq -r ".[$i].name")
-            repo=$(echo $toolchains | jq -r ".[$i].repo")
-            branch=$(echo $toolchains | jq -r ".[$i].branch")
-            git clone --recursive --branch $branch $repo $name --depth=1
-            echo "$(pwd)/$name/" >> $GITHUB_PATH
-            echo "$(pwd)/$name/bin" >> $GITHUB_PATH
+          # Клонируем тулчейны из твоего repos.json
+          echo '${{ toJSON(matrix.repos.toolchains) }}' | jq -c '.[]' | while read i; do
+            name=$(echo $i | jq -r '.name')
+            repo=$(echo $i | jq -r '.repo')
+            branch=$(echo $i | jq -r '.branch')
+            git clone --depth=1 --branch $branch $repo $name
           done
 
-          echo "PATH Variable: $PATH"
-
-      - name: "😎 Set args"
-        id: generate-args
-        working-directory: ./${{ env.kernelDir }}
-        env:
-          params: "${{ toJSON(matrix.repos.params) }}"
-          THREAD: $(nproc --all)
+      - name: "🎶 Build Kernel"
+        working-directory: ${{ env.kernelDir }}/${{ env.kernelName }}
         run: |
-          echo "PATH Variable: $PATH"
-          ARCH=$(echo $params | jq -r ".ARCH")
-          CROSS_COMPILE=$(echo $params | jq -r ".CROSS_COMPILE")
-          CROSS_COMPILE_COMPAT=$(echo $params | jq -r ".CROSS_COMPILE_COMPAT")
-          CROSS_COMPILE_ARM32=$(echo $params | jq -r ".CROSS_COMPILE_ARM32")
-          CLANG_TRIPLE=$(echo $params | jq -r ".CLANG_TRIPLE")
-          AR=$(echo $params | jq -r ".AR")
-          CC=$(echo $params | jq -r ".CC")
-
-          echo "ARCH=$ARCH" >> $GITHUB_ENV
-
-          args="-j$(nproc --all)"
-          if [ -n "${{ env.OUT_DIR }}" ]; then
-            mkdir -p $(pwd)/${{ env.OUT_DIR }}
-            args="$args O=$(pwd)/${{ env.OUT_DIR }}"
-          fi
-          if [ -n "$ARCH" ]; then
-            args="$args ARCH=$ARCH"
-          fi
-          if [ -n "$CROSS_COMPILE" ]; then
-            args="$args CROSS_COMPILE=$CROSS_COMPILE"
-          fi
-          if [ -n "$CLANG_TRIPLE" ]; then
-            args="$args CLANG_TRIPLE=$CLANG_TRIPLE"
-          fi
-          if [ -n "$CROSS_COMPILE_COMPAT" ]; then
-            args="$args CROSS_COMPILE_ARM32=$CROSS_COMPILE_COMPAT"
-          fi
-          if [ -n "$AR" ]; then
-            args="$args AR=$AR"
-          fi
-          if [ -n "$CC" ]; then
-            args="$args CC=$CC"
-          fi
-          echo "args=$args" >> $GITHUB_OUTPUT
-
-      - name: "😋 Update KernelSU"
-        working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
-        if: ${{ env.withKernelSU == 'true' }}
-        run: |
-          if [ -d "./KernelSU" ]; then
-            rm -rf "./KernelSU"
-          fi
-          if [ -d "./drivers/kernelsu" ]; then
-            rm -rf "./drivers/kernelsu"
-          fi
-
-          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
-
-          echo -e "\nCONFIG_KPROBES=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-          echo -e "\nCONFIG_HAVE_KPROBES=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-          echo -e "\nCONFIG_KPROBE_EVENTS=y" >> ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-
-          cat ./arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
-
-      - name: "👍 Make defconfig"
-        working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
-        env:
-          args: ${{ steps.generate-args.outputs.args }}
-        run: |
-          echo "PATH Variable: $PATH"
-          make ${{ env.args }} ${{ env.DEFCONFIG_NAME }}
-
-      - name: "🎶 Build kernel"
-        working-directory: ./${{ env.kernelDir }}/${{ env.kernelName }}
-        run: |
-          echo "🎭 Маскируем Python 3 под Python 2..."
-          sudo ln -sf /usr/bin/python3 /usr/bin/python2
-          sudo ln -sf /usr/bin/python3 /usr/bin/python
-
-          echo "🔧 Настраиваем пути к компиляторам..."
-          GCC64="$(pwd)/../gcc64/bin/aarch64-elf-"
-          GCC32="$(pwd)/../gcc32/bin/arm-eabi-"
+          # Определяем пути к скачанным тулчейнам
+          GCC64="$(pwd)/../gcc64/bin/${{ matrix.repos.params.CROSS_COMPILE }}"
+          GCC32="$(pwd)/../gcc32/bin/${{ matrix.repos.params.CROSS_COMPILE_ARM32 }}"
           
-          echo "📁 Создаем папку для сборки и конфиг..."
-          mkdir -p out
+          mkdir -p ${{ env.OUT_DIR }}
           
-          # Генерируем конфиг
-          make O=out ARCH=arm64 CROSS_COMPILE="$GCC64" jason_user_defconfig
+          # 1. Конфигурация
+          make O=${{ env.OUT_DIR }} ARCH=arm64 CROSS_COMPILE="$GCC64" ${{ env.DEFCONFIG_NAME }}
           
-          echo "🚀 ФИНАЛЬНЫЙ ЗАПУСК..."
-          make O=out ARCH=arm64 \
+          # 2. Сборка
+          make O=${{ env.OUT_DIR }} ARCH=arm64 \
             CROSS_COMPILE="$GCC64" \
             CROSS_COMPILE_ARM32="$GCC32" \
             KCFLAGS="-fcommon -Wno-error" \
             HOSTCFLAGS="-fcommon" \
             -j$(nproc)
 
-
-      - name: "💛 Upload Image"
+      - name: "💛 Upload Artifacts"
         uses: actions/upload-artifact@v4
         with:
-          name: Image-${{ env.kernelDevice }}-${{ github.run_id }}
-          path: ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot/Image
-          if-no-files-found: ignore
-
-      - name: "💙 Upload Image.gz"
-        uses: actions/upload-artifact@v4
-        with:
-          name: Image.gz-${{ env.kernelDevice }}-${{ github.run_id }}
-          path: ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot/Image.gz
-          if-no-files-found: ignore
-
-      - name: "💜 Upload dtb"
-        uses: actions/upload-artifact@v4
-        with:
-          name: dtb-${{ env.kernelDevice }}-${{ github.run_id }}
-          path: ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot/dtb
-          if-no-files-found: ignore
-
-      - name: "❤️ Upload dtbo.img"
-        uses: actions/upload-artifact@v4
-        with:
-          name: dtbo.img-${{ env.kernelDevice }}-${{ github.run_id }}
-          path: ./${{ env.kernelDir }}/${{ env.OUT_DIR }}/arch/${{ env.ARCH }}/boot/dtbo.img
-          if-no-files-found: ignore
+          name: Kernel-${{ matrix.repos.kernelSource.device }}-${{ github.run_id }}
+          path: |
+            ${{ env.kernelDir }}/${{ env.kernelName }}/${{ env.OUT_DIR }}/arch/arm64/boot/Image*
+            ${{ env.kernelDir }}/${{ env.kernelName }}/${{ env.OUT_DIR }}/arch/arm64/boot/*.dtb*
